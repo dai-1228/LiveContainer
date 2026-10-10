@@ -1,12 +1,7 @@
-# copy lc
-wget https://github.com/LiveContainer/dylibify/releases/download/1.0/dylibify
-chmod +x dylibify
-brew install ldid
-
 # move lc to working folder
 mv "$archive_path.xcarchive/Products/Applications" Payload
 
-# temporarily move sidestore support framrwork to tmp before zip
+# temporarily move sidestore support framework to tmp before zip
 mkdir tmp
 mv Payload/LiveContainer.app/Frameworks/SideStoreSupport.framework ./tmp
 
@@ -39,18 +34,15 @@ mv ./tmp/SideStoreSupport.framework Payload/LiveContainer.app/Frameworks
 /usr/libexec/PlistBuddy -c "Add :PreferenceSpecifiers:3:Key string LCOpenSideStore" ./Payload/LiveContainer.app/Settings.bundle/Root.plist
 /usr/libexec/PlistBuddy -c "Add :PreferenceSpecifiers:3:DefaultValue bool false" ./Payload/LiveContainer.app/Settings.bundle/Root.plist
 
-# download SideStore
-cd tmp
-wget https://github.com/LiveContainer/SideStore/releases/download/nightly/SideStore.ipa
-unzip SideStore.ipa
-cd ..
+# download SideStore from the preserved LiveContainer nightly
+# (upstream LiveContainer/SideStore and LiveContainer/dylibify are no longer accessible;
+#  the nightly IPA already contains the dylibified SideStoreApp.framework)
+brew install ldid
+wget "https://github.com/Atticus2077/lc-sidestore-nightly-source/releases/download/nightly-4dbe0f9-20260918231311/LiveContainer%2BSideStore.ipa" -O LCSS_nightly.ipa
+unzip -q LCSS_nightly.ipa -d nightly_prebuilt
 
-# SideStore
-mv ./tmp/Payload/SideStore.app ./Payload/LiveContainer.app/Frameworks/SideStoreApp.framework
-./dylibify ./Payload/LiveContainer.app/Frameworks/SideStoreApp.framework/SideStore ./Payload/LiveContainer.app/Frameworks/SideStoreApp.framework/SideStore.dylib
-rm ./Payload/LiveContainer.app/Frameworks/SideStoreApp.framework/SideStore
-mv ./Payload/LiveContainer.app/Frameworks/SideStoreApp.framework/SideStore.dylib ./Payload/LiveContainer.app/Frameworks/SideStoreApp.framework/SideStore
-ldid -S"" ./Payload/LiveContainer.app/Frameworks/SideStoreApp.framework/SideStore
+# SideStore (already dylibified)
+cp -R ./nightly_prebuilt/Payload/LiveContainer.app/Frameworks/SideStoreApp.framework ./Payload/LiveContainer.app/Frameworks/SideStoreApp.framework
 cp ./.github/sidelc/LCAppInfo.plist ./Payload/LiveContainer.app/Frameworks/SideStoreApp.framework/
 
 # copy intents
@@ -60,15 +52,11 @@ cp -r ./Payload/LiveContainer.app/Frameworks/SideStoreApp.framework/Metadata.app
 sed -i '' 's/9SideStore20RefreshAllAppsIntentV/16SideStoreSupport20RefreshAllAppsIntentV/g' ./Payload/LiveContainer.app/Metadata.appintents/extract.actionsdata
 sed -i '' 's/9SideStore26RefreshAllAppsWidgetIntentV/16SideStoreSupport26RefreshAllAppsWidgetIntentV/g' ./Payload/LiveContainer.app/Metadata.appintents/extract.actionsdata
 
-# AltWidgetExtension
-mv ./Payload/LiveContainer.app/Frameworks/SideStoreApp.framework/PlugIns/AltWidgetExtension.appex ./Payload/LiveContainer.app/PlugIns/LiveWidgetExtension.appex
-/usr/libexec/PlistBuddy -c "Set :CFBundleIdentifier com.kdt.livecontainer.LiveWidget"  ./Payload/LiveContainer.app/PlugIns/LiveWidgetExtension.appex/Info.plist
-/usr/libexec/PlistBuddy -c "Set :CFBundleExecutable LiveWidgetExtension"  ./Payload/LiveContainer.app/PlugIns/LiveWidgetExtension.appex/Info.plist
-mv ./Payload/LiveContainer.app/PlugIns/LiveWidgetExtension.appex/AltWidgetExtension ./Payload/LiveContainer.app/PlugIns/LiveWidgetExtension.appex/LiveWidgetExtension
+# AltWidgetExtension (already renamed and adhoc-signed in the nightly)
+cp -R ./nightly_prebuilt/Payload/LiveContainer.app/PlugIns/LiveWidgetExtension.appex ./Payload/LiveContainer.app/PlugIns/LiveWidgetExtension.appex
 
 # Sign
-rm -r .zsign_cache
-find payloadlc/Payload -type d -name "_CodeSignature" -exec rm -r {} +
+rm -r .zsign_cache 2>/dev/null || true
 
 ldid -S.github/sidelc/LiveWidgetExtension_adhoc.xml ./Payload/LiveContainer.app/PlugIns/LiveWidgetExtension.appex/LiveWidgetExtension
 
